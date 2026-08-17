@@ -1,6 +1,11 @@
 import numpy as np
 
-from whisper_server.agreement import Hypothesis, LocalAgreement, Word
+from whisper_server.agreement import (
+    Hypothesis,
+    LocalAgreement,
+    Word,
+    sanitize_hypothesis,
+)
 
 
 def word(text: str, start: float, end: float) -> Word:
@@ -102,3 +107,33 @@ def test_committed_context_is_bounded():
         Hypothesis((word(" abcdef", 0, 0.5), word(" ghij", 0.5, 1))), final=True
     )
     assert state.request("en", final=False).context == "def ghij"
+
+
+def test_runaway_single_word_is_bounded_before_live_output():
+    words = tuple(word(" dark", index / 10, (index + 1) / 10) for index in range(200))
+    safe = sanitize_hypothesis(words, audio_seconds=5)
+    assert [item.text for item in safe] == [" dark", " dark", " dark"]
+
+
+def test_runaway_phrase_is_bounded_without_removing_normal_words():
+    repeated = tuple(
+        word(f" {text}", index / 10, (index + 1) / 10)
+        for index, text in enumerate((["thank", "you"] * 20) + ["friend"])
+    )
+    safe = sanitize_hypothesis(repeated, audio_seconds=5)
+    assert [item.text for item in safe] == [
+        " thank",
+        " you",
+        " thank",
+        " you",
+        " thank",
+        " you",
+        " friend",
+    ]
+
+
+def test_implausibly_dense_nonrepeating_hypothesis_is_bounded():
+    words = tuple(
+        word(f" word{index}", index / 100, (index + 1) / 100) for index in range(100)
+    )
+    assert len(sanitize_hypothesis(words, audio_seconds=1)) == 16

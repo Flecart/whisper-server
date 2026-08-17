@@ -33,6 +33,7 @@ def test_runtime_uses_fast_partial_and_quality_final_settings():
     assert calls[0][1]["vad_filter"] is True
     assert calls[0][1]["condition_on_previous_text"] is False
     assert calls[0][1]["initial_prompt"] == "contesto"
+    assert calls[0][1]["repetition_penalty"] == 1.1
 
     runtime.transcribe(TranscriptionRequest(audio, 0, "it", "", True))
     assert calls[1][1]["beam_size"] == 5

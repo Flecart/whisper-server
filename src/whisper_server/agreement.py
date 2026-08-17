@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unicodedata
 from dataclasses import dataclass
+from math import ceil
 
 import numpy as np
 from numpy.typing import NDArray
@@ -57,15 +58,48 @@ def _same_word(left: Word, right: Word) -> bool:
 
 
 def _same_overlap_word(left: Word, right: Word) -> bool:
-    def lexical(text: str) -> str:
-        normalized = "".join(
-            character.casefold()
-            for character in text.strip()
-            if unicodedata.category(character)[0] in {"L", "N"}
-        )
-        return normalized or text.strip().casefold()
+    return _lexical(left.text) == _lexical(right.text)
 
-    return lexical(left.text) == lexical(right.text)
+
+def _lexical(text: str) -> str:
+    normalized = "".join(
+        character.casefold()
+        for character in text.strip()
+        if unicodedata.category(character)[0] in {"L", "N"}
+    )
+    return normalized or text.strip().casefold()
+
+
+def sanitize_hypothesis(
+    words: tuple[Word, ...],
+    *,
+    audio_seconds: float,
+    maximum_repeats: int = 3,
+) -> tuple[Word, ...]:
+    """Bound decoder loops before an unstable hypothesis reaches a live client."""
+
+    accepted: list[Word] = []
+    lexical: list[str] = []
+    for word in words:
+        accepted.append(word)
+        lexical.append(_lexical(word.text))
+        for width in range(1, min(8, len(lexical) // maximum_repeats) + 1):
+            repeated_width = width * (maximum_repeats + 1)
+            if len(lexical) < repeated_width:
+                continue
+            block = lexical[-width:]
+            if all(
+                lexical[-width * (offset + 1) : -width * offset or None] == block
+                for offset in range(1, maximum_repeats + 1)
+            ):
+                del accepted[-width:]
+                del lexical[-width:]
+                break
+
+    # Conversational speech rarely exceeds eight words per second. The extra
+    # eight-word margin accommodates very short windows and timestamp jitter.
+    maximum_words = max(16, ceil(max(0.0, audio_seconds) * 8) + 8)
+    return tuple(accepted[:maximum_words])
 
 
 class LocalAgreement:

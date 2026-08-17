@@ -3,7 +3,13 @@ from __future__ import annotations
 import logging
 from typing import cast
 
-from .agreement import FloatArray, Hypothesis, TranscriptionRequest, Word
+from .agreement import (
+    FloatArray,
+    Hypothesis,
+    TranscriptionRequest,
+    Word,
+    sanitize_hypothesis,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -33,6 +39,7 @@ class FasterWhisperRuntime:
             vad_parameters={"min_silence_duration_ms": 300},
             condition_on_previous_text=False,
             initial_prompt=request.context or None,
+            repetition_penalty=1.1,
         )
         words: list[Word] = []
         for segment in segments:
@@ -45,8 +52,18 @@ class FasterWhisperRuntime:
                         confidence=float(word.probability),
                     )
                 )
+        safe_words = sanitize_hypothesis(
+            tuple(words), audio_seconds=len(request.audio) / 16_000
+        )
+        if len(safe_words) != len(words):
+            LOG.warning(
+                "Suppressed runaway hypothesis words (raw=%d safe=%d audio=%.2fs)",
+                len(words),
+                len(safe_words),
+                len(request.audio) / 16_000,
+            )
         return Hypothesis(
-            tuple(words),
+            safe_words,
             language=getattr(info, "language", request.language),
             language_probability=float(getattr(info, "language_probability", 0.0)),
         )
