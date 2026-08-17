@@ -1,0 +1,7 @@
+LocalAgreement-2 is based on the approach described and implemented by the
+UFAL Whisper-Streaming project:
+
+https://github.com/ufal/whisper_streaming
+
+Whisper-Streaming is distributed under the MIT License. This repository uses
+an independent implementation and preserves attribution here.
