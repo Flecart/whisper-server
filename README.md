@@ -146,6 +146,9 @@ finalization latency:
 ./scripts/e2e-client.py fixture.pcm --language it-IT
 ```
 
+For bounded-window soak testing, `--speed 4` streams ten minutes of PCM in
+about 2.5 minutes while `--event-limit 5` keeps diagnostic output compact.
+
 After English, Italian, ten-minute, two-stream, latency, and GPU-memory checks
 pass, move the existing tunnel/service from 8765 to the accepted deployment.
 

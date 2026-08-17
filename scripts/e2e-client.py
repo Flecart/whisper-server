@@ -12,7 +12,12 @@ from websockets.asyncio.client import connect
 
 
 async def transcribe(
-    endpoint: str, pcm_path: Path, language: str, token: str | None
+    endpoint: str,
+    pcm_path: Path,
+    language: str,
+    token: str | None,
+    speed: float,
+    event_limit: int,
 ) -> dict[str, object]:
     parameters = urlencode(
         {
@@ -37,6 +42,8 @@ async def transcribe(
     first_interim_seconds: float | None = None
     finalized_seconds: float | None = None
     speech_started = False
+    result_events: list[dict[str, object]] = []
+    result_event_count = 0
 
     async with connect(
         f"{endpoint}?{parameters}",
@@ -55,7 +62,7 @@ async def transcribe(
         for offset in range(0, len(pcm), 4096):
             chunk = pcm[offset : offset + 4096]
             await websocket.send(chunk)
-            await asyncio.sleep(len(chunk) / 32_000)
+            await asyncio.sleep(len(chunk) / 32_000 / speed)
         finalize_at = time.monotonic()
         await websocket.send(json.dumps({"type": "Finalize"}))
 
@@ -68,8 +75,19 @@ async def transcribe(
                 speech_started = True
             if message_type != "Results":
                 continue
+            result_event_count += 1
             alternatives = message.get("channel", {}).get("alternatives", [])
             text = alternatives[0].get("transcript", "").strip() if alternatives else ""
+            if len(result_events) < event_limit:
+                result_events.append(
+                    {
+                        "at_seconds": round(received_at - connected_at, 3),
+                        "transcript": text,
+                        "is_final": bool(message.get("is_final")),
+                        "speech_final": bool(message.get("speech_final")),
+                        "from_finalize": bool(message.get("from_finalize")),
+                    }
+                )
             if message.get("is_final"):
                 if text:
                     final_segments.append(text)
@@ -101,6 +119,8 @@ async def transcribe(
             else None
         ),
         "finalize_seconds": round(finalized_seconds, 3),
+        "result_event_count": result_event_count,
+        "result_events": result_events,
         "metadata": metadata,
     }
 
@@ -111,8 +131,21 @@ def main() -> None:
     parser.add_argument("--language", required=True)
     parser.add_argument("--endpoint", default="ws://127.0.0.1:8766/v1/listen")
     parser.add_argument("--token")
+    parser.add_argument("--speed", type=float, default=1.0)
+    parser.add_argument("--event-limit", type=int, default=50)
     args = parser.parse_args()
-    result = asyncio.run(transcribe(args.endpoint, args.pcm, args.language, args.token))
+    if args.speed <= 0 or args.event_limit < 0:
+        parser.error("--speed must be positive and --event-limit non-negative")
+    result = asyncio.run(
+        transcribe(
+            args.endpoint,
+            args.pcm,
+            args.language,
+            args.token,
+            args.speed,
+            args.event_limit,
+        )
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
