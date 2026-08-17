@@ -17,6 +17,11 @@ def test_external_binding_requires_token_or_explicit_unsafe_flag():
     Settings(host="0.0.0.0", unsafe_allow_unauthenticated=True).validated()
 
 
+def test_commit_lag_must_not_be_negative():
+    with pytest.raises(ValueError, match="COMMIT_LAG_SECONDS"):
+        Settings(commit_lag_seconds=-0.1).validated()
+
+
 def test_deepgram_token_authentication_is_exact():
     assert authorized("Token secret", "secret")
     assert not authorized("Bearer secret", "secret")

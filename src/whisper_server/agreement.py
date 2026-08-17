@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 from math import ceil
@@ -70,6 +71,15 @@ def _lexical(text: str) -> str:
     return normalized or text.strip().casefold()
 
 
+def normalize_punctuation(text: str) -> str:
+    """Turn unstable punctuation runs into one dictation-friendly mark."""
+
+    text = re.sub(r"\.{2,}", ".", text)
+    text = re.sub(r"\.([,;:])", r"\1", text)
+    text = re.sub(r",\.", ".", text)
+    return text
+
+
 def sanitize_hypothesis(
     words: tuple[Word, ...],
     *,
@@ -112,11 +122,13 @@ class LocalAgreement:
         overlap_seconds: float = 1.5,
         max_buffer_seconds: float = 20.0,
         context_characters: int = 500,
+        commit_lag_seconds: float = 1.0,
     ) -> None:
         self.active_window_seconds = active_window_seconds
         self.overlap_seconds = overlap_seconds
         self.max_buffer_seconds = max_buffer_seconds
         self.context_characters = context_characters
+        self.commit_lag_seconds = commit_lag_seconds
         self.audio: FloatArray = np.empty(0, dtype=np.float32)
         self.audio_start = 0.0
         self.total_audio_seconds = 0.0
@@ -170,8 +182,12 @@ class LocalAgreement:
                 if not _same_word(old, new):
                     break
                 common += 1
-            stable = current[:common]
-            interim = current[common:]
+            commit_before = self.total_audio_seconds - self.commit_lag_seconds
+            committable = sum(
+                1 for word in current[:common] if word.end <= commit_before
+            )
+            stable = current[:committable]
+            interim = current[committable:]
         if stable:
             self.committed_words.extend(stable)
             self.committed_until = max(self.committed_until, stable[-1].end)

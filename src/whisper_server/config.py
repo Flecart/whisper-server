@@ -33,6 +33,7 @@ class Settings:
     partial_interval_seconds: float = 1.25
     active_window_seconds: float = 15.0
     overlap_seconds: float = 1.5
+    commit_lag_seconds: float = 1.0
     context_characters: int = 500
     max_session_seconds: float = 300.0
     idle_timeout_seconds: float = 10.0
@@ -56,6 +57,7 @@ class Settings:
             ),
             active_window_seconds=float(os.environ.get("ACTIVE_WINDOW_SECONDS", "15")),
             overlap_seconds=float(os.environ.get("OVERLAP_SECONDS", "1.5")),
+            commit_lag_seconds=float(os.environ.get("COMMIT_LAG_SECONDS", "1.0")),
             context_characters=int(os.environ.get("CONTEXT_CHARACTERS", "500")),
             max_session_seconds=float(os.environ.get("MAX_SESSION_SECONDS", "300")),
             idle_timeout_seconds=float(os.environ.get("IDLE_TIMEOUT_SECONDS", "10")),
@@ -72,6 +74,8 @@ class Settings:
             raise ValueError("MAX_STREAMS and INFERENCE_CONCURRENCY must be positive")
         if self.max_frame_bytes < 2 or self.max_buffer_seconds <= 0:
             raise ValueError("frame and buffer limits must be positive")
+        if self.commit_lag_seconds < 0:
+            raise ValueError("COMMIT_LAG_SECONDS must not be negative")
         if (
             not is_loopback(self.host)
             and not self.api_token

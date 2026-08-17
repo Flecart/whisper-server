@@ -78,6 +78,7 @@ class StreamingSession:
             overlap_seconds=settings.overlap_seconds,
             max_buffer_seconds=settings.max_buffer_seconds,
             context_characters=settings.context_characters,
+            commit_lag_seconds=settings.commit_lag_seconds,
         )
         self._started = time.monotonic()
         self._last_contact = self._started

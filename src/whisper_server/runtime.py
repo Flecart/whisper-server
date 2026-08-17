@@ -8,6 +8,7 @@ from .agreement import (
     Hypothesis,
     TranscriptionRequest,
     Word,
+    normalize_punctuation,
     sanitize_hypothesis,
 )
 
@@ -46,7 +47,7 @@ class FasterWhisperRuntime:
             for word in segment.words or ():
                 words.append(
                     Word(
-                        text=word.word,
+                        text=normalize_punctuation(word.word),
                         start=request.audio_start + float(word.start),
                         end=request.audio_start + float(word.end),
                         confidence=float(word.probability),
