@@ -1,0 +1,30 @@
+[Unit]
+Description=Deepgram-compatible faster-whisper streaming server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=whisper-server
+Group=whisper-server
+WorkingDirectory=/opt/whisper-server
+Environment=PORT=8766
+Environment=WHISPER_MODEL=turbo
+Environment=WHISPER_DEVICE=cuda
+Environment=WHISPER_COMPUTE_TYPE=int8_float16
+Environment=MAX_STREAMS=2
+Environment=INFERENCE_CONCURRENCY=1
+EnvironmentFile=-/etc/whisper-server.env
+ExecStart=/opt/whisper-server/scripts/run-with-cuda-libs /opt/whisper-server/.venv/bin/whisper-server
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/cache/whisper-server
+Environment=HF_HOME=/var/cache/whisper-server/huggingface
+
+[Install]
+WantedBy=multi-user.target

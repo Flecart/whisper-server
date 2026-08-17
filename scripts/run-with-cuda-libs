@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+python_bin="${VIRTUAL_ENV:-$(pwd)/.venv}/bin/python"
+cuda_library_path="$($python_bin -c 'import nvidia.cublas.lib as b; import nvidia.cudnn.lib as d; print(next(iter(b.__path__)) + ":" + next(iter(d.__path__)))')"
+export LD_LIBRARY_PATH="$cuda_library_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+exec "$@"

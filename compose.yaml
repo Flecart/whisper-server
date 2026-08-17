@@ -1,0 +1,27 @@
+services:
+  whisper-server:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "8765"
+      WHISPER_MODEL: ${WHISPER_MODEL:-turbo}
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8_float16}
+      MAX_STREAMS: ${MAX_STREAMS:-2}
+      INFERENCE_CONCURRENCY: ${INFERENCE_CONCURRENCY:-1}
+      # Safe only because the published host address below is loopback.
+      UNSAFE_ALLOW_UNAUTHENTICATED: "true"
+    ports:
+      - "127.0.0.1:${HOST_PORT:-8766}:8765"
+    volumes:
+      - whisper-model-cache:/models/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  whisper-model-cache:
