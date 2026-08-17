@@ -139,6 +139,13 @@ VOXKEY_BACKEND=whisper \
 VOXKEY_WHISPER_URL=ws://127.0.0.1:8766/v1/listen voxkey daemon
 ```
 
+The included fixture client sends raw PCM in real time and reports interim and
+finalization latency:
+
+```bash
+./scripts/e2e-client.py fixture.pcm --language it-IT
+```
+
 After English, Italian, ten-minute, two-stream, latency, and GPU-memory checks
 pass, move the existing tunnel/service from 8765 to the accepted deployment.
 

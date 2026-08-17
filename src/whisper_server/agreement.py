@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 
 import numpy as np
@@ -53,6 +54,18 @@ def _same_word(left: Word, right: Word) -> bool:
     # Preserve punctuation and Unicode exactly; normalize only Whisper's
     # inconsistent leading spaces between adjacent word tokens.
     return left.text.strip() == right.text.strip()
+
+
+def _same_overlap_word(left: Word, right: Word) -> bool:
+    def lexical(text: str) -> str:
+        normalized = "".join(
+            character.casefold()
+            for character in text.strip()
+            if unicodedata.category(character)[0] in {"L", "N"}
+        )
+        return normalized or text.strip().casefold()
+
+    return lexical(left.text) == lexical(right.text)
 
 
 class LocalAgreement:
@@ -141,7 +154,7 @@ class LocalAgreement:
         maximum = min(len(tail), len(words))
         for count in range(maximum, 0, -1):
             if all(
-                _same_word(old, new)
+                _same_overlap_word(old, new)
                 for old, new in zip(tail[-count:], words[:count], strict=True)
             ):
                 return words[count:]

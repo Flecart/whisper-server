@@ -66,6 +66,21 @@ def test_overlap_repetition_is_suppressed_but_later_repetition_is_preserved():
     ]
 
 
+def test_overlap_repetition_suppression_tolerates_punctuation_revision():
+    state = LocalAgreement(overlap_seconds=1.5)
+    state.accept(
+        Hypothesis((word(" città,", 0.0, 0.5), word(" perché?", 0.5, 0.9))),
+        final=True,
+    )
+    revised = Hypothesis(
+        (word(" perché", 0.7, 1.0), word(" la", 1.0, 1.2), word(" vita", 1.2, 1.5))
+    )
+    assert [item.text for item in state.accept(revised, final=True).committed] == [
+        " la",
+        " vita",
+    ]
+
+
 def test_audio_window_and_buffer_are_bounded_and_trim_at_word_boundary():
     state = LocalAgreement(
         active_window_seconds=15, max_buffer_seconds=20, overlap_seconds=1.5
