@@ -127,6 +127,10 @@ install `deploy/systemd/whisper-server.service`, and adjust its user/path. The
 provided unit stages on port 8766. `scripts/run-with-cuda-libs` adds only the
 CUDA wheel library directories to `LD_LIBRARY_PATH` before starting the CLI.
 
+`deploy/systemd/whisper-server-user.service` is a staging example for an
+existing per-user faster-whisper virtual environment. It keeps the current
+service and port 8765 intact while serving this repository from port 8766.
+
 For VoxKey, make a temporary forward first:
 
 ```bash

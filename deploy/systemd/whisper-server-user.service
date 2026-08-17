@@ -1,0 +1,23 @@
+[Unit]
+Description=Staged Deepgram-compatible faster-whisper streaming server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/whisper-server
+Environment=PORT=8766
+Environment=WHISPER_MODEL=turbo
+Environment=WHISPER_DEVICE=cuda
+Environment=WHISPER_COMPUTE_TYPE=int8_float16
+Environment=MAX_STREAMS=2
+Environment=INFERENCE_CONCURRENCY=1
+Environment=VIRTUAL_ENV=%h/voxkey-whisper/.venv
+EnvironmentFile=-%h/.config/whisper-server/env
+ExecStart=%h/whisper-server/scripts/run-with-cuda-libs %h/voxkey-whisper/.venv/bin/whisper-server
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
