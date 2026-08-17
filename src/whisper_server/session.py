@@ -92,6 +92,8 @@ class StreamingSession:
         self._last_speech_audio = 0.0
         self._pending_utterance_end: float | None = None
         self._vad_audio: FloatArray = np.empty(0, dtype=np.float32)
+        self._vad_task: asyncio.Task[list[dict[str, int]]] | None = None
+        self._vad_window = (0.0, 0.0)
 
     async def send(self, message: dict[str, Any]) -> None:
         await self.websocket.send_text(json.dumps(message, ensure_ascii=False))
@@ -112,6 +114,7 @@ class StreamingSession:
                     return
 
                 await self._complete_inference_if_ready()
+                await self._complete_vad_if_ready()
                 await self._maybe_schedule()
                 await self._maybe_send_utterance_end()
                 if self._close_requested and self._inference is None:
@@ -137,6 +140,9 @@ class StreamingSession:
             return
         finally:
             await self.scheduler.cancel(self.request_id)
+            if self._vad_task is not None:
+                self._vad_task.cancel()
+                await asyncio.gather(self._vad_task, return_exceptions=True)
             self.state.audio = self.state.audio[:0]
             self._vad_audio = self._vad_audio[:0]
 
@@ -156,27 +162,52 @@ class StreamingSession:
             raise WebSocketDisconnect(code=1003) from error
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
         self._vad_audio = np.concatenate((self._vad_audio, samples))
-        if len(self._vad_audio) >= 5120:
-            block = self._vad_audio
-            self._vad_audio = self._vad_audio[:0]
-            speech = await asyncio.to_thread(self.runtime.speech_timestamps, block)
-            if speech:
-                if not self._speech_active:
-                    self._speech_active = True
-                    if self.options.vad_events:
-                        timestamp = max(
-                            0.0,
-                            self.state.total_audio_seconds - len(block) / 16_000,
-                        )
-                        await self.send(speech_started_message(round(timestamp, 3)))
-                self._last_speech_audio = self.state.total_audio_seconds
-            elif (
-                self._speech_active
-                and self.state.total_audio_seconds - self._last_speech_audio
-                >= self.options.endpointing_ms / 1000
-                and self._pending_final is None
-            ):
-                self._pending_final = "endpoint"
+        self._maybe_start_vad()
+
+    def _maybe_start_vad(self) -> None:
+        if self._vad_task is not None or len(self._vad_audio) < 5120:
+            return
+        block = self._vad_audio
+        self._vad_audio = self._vad_audio[:0]
+        block_end = self.state.total_audio_seconds
+        block_start = max(0.0, block_end - len(block) / 16_000)
+        self._vad_window = (block_start, block_end)
+        self._vad_task = asyncio.create_task(
+            asyncio.to_thread(self.runtime.speech_timestamps, block),
+            name=f"vad-{self.request_id}",
+        )
+
+    async def _complete_vad_if_ready(self) -> None:
+        task = self._vad_task
+        if task is None or not task.done():
+            return
+        self._vad_task = None
+        block_start, block_end = self._vad_window
+        try:
+            speech = task.result()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            LOG.exception("VAD failed for stream %s", self.request_id)
+            self._maybe_start_vad()
+            return
+        if speech:
+            if not self._speech_active:
+                self._speech_active = True
+                if self.options.vad_events:
+                    await self.send(
+                        speech_started_message(round(block_start, 3))
+                    )
+            self._last_speech_audio = block_end
+        elif (
+            self._speech_active
+            and block_end - self._last_speech_audio
+            >= self.options.endpointing_ms / 1000
+            and self._pending_final is None
+            and not (self._inference is not None and self._inference_final)
+        ):
+            self._pending_final = "endpoint"
+        self._maybe_start_vad()
 
     async def _control(self, payload: str) -> bool:
         self._last_contact = time.monotonic()

@@ -1,3 +1,4 @@
+import threading
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,6 +24,7 @@ def test_runtime_uses_fast_partial_and_quality_final_settings():
 
     runtime = FasterWhisperRuntime.__new__(FasterWhisperRuntime)
     runtime.model = Model()
+    runtime._runtime_lock = threading.Lock()
     audio = np.zeros(160, dtype=np.float32)
     partial = TranscriptionRequest(audio, 2.0, "it", "contesto", False)
     result = runtime.transcribe(partial)

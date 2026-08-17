@@ -77,7 +77,9 @@ default; further connections receive an error and close code 1013. Increasing
 benchmarked on the target card before production use.
 
 Silero VAD bundled with faster-whisper detects speech starts and endpoint
-silence. Whisper itself is not token-streaming, so interim text can revise until
+silence. VAD runs off the socket receive path, so a slow VAD pass cannot delay
+`Finalize`; endpoint flushes are deduplicated while one is already running.
+Whisper itself is not token-streaming, so interim text can revise until
 LocalAgreement commits it.
 
 ## Configuration

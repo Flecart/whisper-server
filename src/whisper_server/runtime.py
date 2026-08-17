@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import cast
 
 from .agreement import (
@@ -23,12 +24,17 @@ class FasterWhisperRuntime:
 
         LOG.info("Loading Whisper %s on %s with %s", model_name, device, compute_type)
         self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        self._runtime_lock = threading.Lock()
         self.model_name = model_name
         self.device = device
         self.compute_type = compute_type
         LOG.info("Whisper model is ready")
 
     def transcribe(self, request: TranscriptionRequest) -> Hypothesis:
+        with self._runtime_lock:
+            return self._transcribe(request)
+
+    def _transcribe(self, request: TranscriptionRequest) -> Hypothesis:
         segments, info = self.model.transcribe(
             request.audio,
             language=request.language,
@@ -70,6 +76,10 @@ class FasterWhisperRuntime:
         )
 
     def speech_timestamps(self, audio: FloatArray) -> list[dict[str, int]]:
+        with self._runtime_lock:
+            return self._speech_timestamps(audio)
+
+    def _speech_timestamps(self, audio: FloatArray) -> list[dict[str, int]]:
         from faster_whisper.vad import VadOptions, get_speech_timestamps
 
         return cast(
